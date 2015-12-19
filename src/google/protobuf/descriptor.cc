@@ -510,7 +510,7 @@ class FileDescriptorTables {
   ~FileDescriptorTables();
 
   // Empty table, used with placeholder files.
-  static const FileDescriptorTables kEmpty;
+  inline static const FileDescriptorTables& GetEmptyInstance();
 
   // -----------------------------------------------------------------
   // Finding items.
@@ -605,7 +605,32 @@ FileDescriptorTables::FileDescriptorTables()
 
 FileDescriptorTables::~FileDescriptorTables() {}
 
-const FileDescriptorTables FileDescriptorTables::kEmpty;
+namespace {
+
+FileDescriptorTables* file_descriptor_tables_ = NULL;
+GOOGLE_PROTOBUF_DECLARE_ONCE(file_descriptor_tables_once_init_);
+
+void DeleteFileDescriptorTables() {
+  delete file_descriptor_tables_;
+  file_descriptor_tables_ = NULL;
+}
+
+void InitFileDescriptorTables() {
+  file_descriptor_tables_ = new FileDescriptorTables();
+  internal::OnShutdown(&DeleteFileDescriptorTables);
+}
+
+inline void InitFileDescriptorTablesOnce() {
+  ::google::protobuf::GoogleOnceInit(
+      &file_descriptor_tables_once_init_, &InitFileDescriptorTables);
+}
+
+}  // anonymous namespace
+
+inline const FileDescriptorTables& FileDescriptorTables::GetEmptyInstance() {
+  InitFileDescriptorTablesOnce();
+  return *file_descriptor_tables_;
+}
 
 void DescriptorPool::Tables::AddCheckpoint() {
   checkpoints_.push_back(CheckPoint(this));
@@ -3002,7 +3027,7 @@ Symbol DescriptorBuilder::NewPlaceholder(const string& name,
   placeholder_file->package_ = placeholder_package;
   placeholder_file->pool_ = pool_;
   placeholder_file->options_ = &FileOptions::default_instance();
-  placeholder_file->tables_ = &FileDescriptorTables::kEmpty;
+  placeholder_file->tables_ = &FileDescriptorTables::GetEmptyInstance();
   placeholder_file->is_placeholder_ = true;
   // All other fields are zero or NULL.
 
@@ -3077,7 +3102,7 @@ const FileDescriptor* DescriptorBuilder::NewPlaceholderFile(
   placeholder->package_ = &internal::GetEmptyString();
   placeholder->pool_ = pool_;
   placeholder->options_ = &FileOptions::default_instance();
-  placeholder->tables_ = &FileDescriptorTables::kEmpty;
+  placeholder->tables_ = &FileDescriptorTables::GetEmptyInstance();
   placeholder->is_placeholder_ = true;
   // All other fields are zero or NULL.
 
